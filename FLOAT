@@ -1,0 +1,172 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- State variables
+local isAirWalkActive = false
+local currentAirHeight = 0
+local heightIncrement = 3 -- Height added per jump key press
+
+-- Create air platform (invisible part beneath player feet)
+local airPlatform = Instance.new("Part")
+airPlatform.Name = "AirWalkPlatform"
+airPlatform.Size = Vector3.new(6, 1, 6)
+airPlatform.Anchored = true
+airPlatform.Transparency = 0.8 -- Set to 1 for completely invisible
+airPlatform.Material = Enum.Material.ForceField
+airPlatform.Color = Color3.fromRGB(0, 170, 255)
+airPlatform.CanCollide = false
+airPlatform.Parent = workspace
+
+-- Screen GUI setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AirWalkGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 220, 0, 170)
+mainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 8)
+uiCorner.Parent = mainFrame
+
+-- Title Label
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -35, 0, 35)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "Air Walk Controller"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 15
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = mainFrame
+
+-- Close Button ("X")
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseButton"
+closeBtn.Size = UDim2.new(0, 26, 0, 26)
+closeBtn.Position = UDim2.new(1, -30, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextSize = 14
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeBtn
+
+-- Toggle Air Walk Button
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0.85, 0, 0, 35)
+toggleBtn.Position = UDim2.new(0.075, 0, 0.28, 0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+toggleBtn.Text = "Air Walk: OFF"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.GothamSemibold
+toggleBtn.TextSize = 14
+toggleBtn.Parent = mainFrame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 6)
+btnCorner.Parent = toggleBtn
+
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(0.9, 0, 0, 40)
+infoLabel.Position = UDim2.new(0.05, 0, 0.65, 0)
+infoLabel.BackgroundTransparency = 1
+infoLabel.Text = "SPACE: Jump Higher\nL-CTRL: Descend | R-CTRL: Toggle Menu"
+infoLabel.TextColor3 = Color3.fromRGB(180, 180, 190)
+infoLabel.TextSize = 10
+infoLabel.Font = Enum.Font.Gotham
+infoLabel.Parent = mainFrame
+
+--------------------------------------------------------------------------------
+-- EVENT LOGIC
+--------------------------------------------------------------------------------
+
+-- Update position loop
+RunService.Heartbeat:Connect(function()
+    character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    
+    rootPart = character.HumanoidRootPart
+    humanoid = character:FindFirstChildOfClass("Humanoid")
+
+    if isAirWalkActive then
+        airPlatform.CanCollide = true
+        airPlatform.CFrame = CFrame.new(rootPart.Position.X, currentAirHeight - 2.5, rootPart.Position.Z)
+    else
+        airPlatform.CanCollide = false
+        airPlatform.Position = Vector3.new(0, -500, 0)
+    end
+end)
+
+-- Enable / Disable Air Walk
+local function toggleAirWalk()
+    isAirWalkActive = not isAirWalkActive
+    if isAirWalkActive then
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 80)
+        toggleBtn.Text = "Air Walk: ON"
+        currentAirHeight = rootPart.Position.Y
+    else
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        toggleBtn.Text = "Air Walk: OFF"
+    end
+end
+
+toggleBtn.MouseButton1Click:Connect(toggleAirWalk)
+
+-- Close Button functionality (Hides frame)
+closeBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+end)
+
+-- Key inputs (Space to jump, L-Ctrl to descend, R-Ctrl to reopen menu)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    -- Press Right Control to toggle GUI visibility back ON/OFF
+    if input.KeyCode == Enum.KeyCode.RightControl then
+        mainFrame.Visible = not mainFrame.Visible
+    end
+    
+    if not isAirWalkActive then return end
+    
+    -- Jump higher on Space
+    if input.KeyCode == Enum.KeyCode.Space then
+        currentAirHeight = currentAirHeight + heightIncrement
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+    
+    -- Descend on Left Control
+    if input.KeyCode == Enum.KeyCode.LeftControl then
+        currentAirHeight = currentAirHeight - heightIncrement
+    end
+end)
+
+-- Reset handling on death
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    rootPart = character:WaitForChild("HumanoidRootPart")
+    humanoid = character:WaitForChild("Humanoid")
+    if isAirWalkActive then
+        toggleAirWalk()
+    end
+end)
